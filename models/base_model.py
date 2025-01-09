@@ -3,7 +3,8 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
-
+import os.path as osp
+from loguru import logger
 
 class BaseModel:
     def __init__(self, opt):
@@ -30,6 +31,26 @@ class BaseModel:
 
     def save(self, label):
         pass
+
+    def save_network(self, network, network_label, iter_label, max_num_ckpts=3):
+        if 'best' in network_label or 'latest' in network_label:  # best model
+            save_filename = f'{iter_label:06d}_{network_label}_{self.opt["expid"]}.pth'
+        else:
+            save_filename = f'{int(iter_label):06d}_{network_label}_{self.opt["expid"]}.pth'
+        save_path = os.path.join(self.opt['path']['models'], save_filename)
+        # check number of ckpts in log_dir
+        ckpt_list = [f for f in os.listdir(self.opt['path']['models']) if f.endswith('.pth') and not f.startswith('best')]
+        if len(ckpt_list) >= max_num_ckpts:
+            # remove oldest ckpt
+            ckpt_list.sort(key=lambda x: osp.getmtime(osp.join(self.opt['path']['models'], x)))  # ckpt[0] is the oldest
+            os.remove(osp.join(self.opt['path']['models'], ckpt_list[0]))
+        
+        if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
+            network = network.module
+        state_dict = network.state_dict()
+        for key, param in state_dict.items():
+            state_dict[key] = param.cpu()
+        torch.save(state_dict, save_path)
 
     def load(self):
         pass
@@ -71,15 +92,15 @@ class BaseModel:
             network = network.module
         return str(network), sum(map(lambda x: x.numel(), network.parameters()))
 
-    def save_network(self, network, network_label, iter_label):
-        save_filename = '{}_{}.pth'.format(iter_label, network_label)
-        save_path = os.path.join(self.opt['path']['models'], save_filename)
-        if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
-            network = network.module
-        state_dict = network.state_dict()
-        for key, param in state_dict.items():
-            state_dict[key] = param.cpu()
-        torch.save(state_dict, save_path)
+    # def save_network(self, network, network_label, iter_label):
+    #     save_filename = f'{iter_label:06d}_{network_label}.pth'
+    #     save_path = os.path.join(self.opt['path']['models'], save_filename)
+    #     if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
+    #         network = network.module
+    #     state_dict = network.state_dict()
+    #     for key, param in state_dict.items():
+    #         state_dict[key] = param.cpu()
+    #     torch.save(state_dict, save_path)
 
     def load_network(self, load_path, network, strict=True):
         if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
@@ -93,19 +114,27 @@ class BaseModel:
                 else:
                     load_net_clean[k] = v
             network.load_state_dict(load_net_clean, strict=strict)
-            print("Succcefully!!!!! pretrained model has loaded!!!!!!!!!!!!!!!")
+            logger.info(f"Succcefully!!!!! pretrained model has loaded!!!!!!!!!!!!!!!{load_path}")
         else:
-            print("Wrong!!!!! pretrained path not exists")
+            logger.error(f"Wrong!!!!! pretrained path not exists: {load_path}")
 
-    def save_training_state(self, epoch, iter_step):
+    def save_training_state(self, epoch, iter_step, max_num_states=3):
         """Save training state during training, which will be used for resuming"""
         state = {'epoch': epoch, 'iter': iter_step, 'schedulers': [], 'optimizers': []}
         for s in self.schedulers:
             state['schedulers'].append(s.state_dict())
         for o in self.optimizers:
             state['optimizers'].append(o.state_dict())
-        save_filename = '{}.state'.format(iter_step)
+        save_filename = f'{int(iter_step):06d}.state'
         save_path = os.path.join(self.opt['path']['training_state'], save_filename)
+
+        # check number of ckpts in log_dir
+        state_list = [f for f in os.listdir(self.opt['path']['training_state']) if f.endswith('.state')]
+        if len(state_list) >= max_num_states:
+            # remove oldest ckpt
+            state_list.sort(key=lambda x: osp.getmtime(osp.join(self.opt['path']['training_state'], x)))  # ckpt[0] is the oldest
+            os.remove(osp.join(self.opt['path']['training_state'], state_list[0]))
+
         torch.save(state, save_path)
 
     def resume_training(self, resume_state):

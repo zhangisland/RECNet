@@ -21,6 +21,10 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
+import hashlib
+
+def gen_expid(instr):
+    return hashlib.md5(instr.encode('utf-8')).hexdigest()[:8]
 
 def OrderedYaml():
     '''yaml orderedDict support'''

@@ -15,6 +15,7 @@ import time
 import os.path as osp
 timestr = time.strftime('%Y%m%d-%H%M%S')
 import wandb
+os.environ["WANDB_MODE"] = "offline"
 
 
 def main():
@@ -25,12 +26,13 @@ def main():
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     opt = option.parse(args.opt, is_train=True)
+    
 
     #### distributed training settings
     opt['dist'] = False
     rank = -1
     logger.info('Disabled distributed training.')
-
+    
     #### loading resume state if exists
     if opt['path'].get('resume_state', None):
         # distributed resuming: all load into default GPU
@@ -40,24 +42,48 @@ def main():
     else:
         resume_state = None
 
-    #### mkdir and loggers
-    if rank <= 0:  # normal training (rank -1) OR distributed training (rank 0)
-        util.mkdirs((path for key, path in opt['path'].items() if not key == 'experiments_root'
-                     and 'pretrain_model' not in key and 'resume' not in key))
-        logger.add(os.path.join(opt['path']['log'], f'train_{opt["name"]}_{timestr}.log'))
-        
-    # tensorboard logger
-    if opt['use_tb_logger']:
-        tb_logger = SummaryWriter(log_dir=(osp.join(opt['path']['root'], 'tb_logger', f'{opt["name"]}_{timestr}')))
-
     opt = option.dict_to_nonedict(opt)
     seed = opt['train']['manual_seed']
     if seed is None:
         seed = random.randint(1, 10000)
     if rank <= 0:
-        logger.info('Random seed: {}'.format(seed))
+        logger.info(f'Random seed: {seed}')
     util.set_random_seed(seed)
     torch.backends.cudnn.benchmark = True
+
+    
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="MultiExposure",
+
+        # track hyperparameters and run metadata
+        config={
+        "expid": opt['expid'],
+        "name": opt['name'],
+        "model": opt['model'],
+        "architecture": opt['network_G']["which_model_G"],
+        "IN_size": opt['datasets']['train']['IN_size'],
+        "train_dataset": osp.basename(opt['datasets']['train']['filelist']),
+        "val_dataset": osp.basename(opt['datasets']['val']['filelist']),
+        "test_dataset": osp.basename(opt['datasets']['test']['filelist']),
+        "niter": opt['train']['niter'],
+        "batch_size": opt['datasets']['train']['batch_size'],
+        "lr_G": opt['train']['lr_G'],
+        "lr_steps": opt['train']['lr_steps'],
+        "lr_scheme": opt['train']['lr_scheme'],        
+        "lr_gamma": opt['train']['lr_gamma'],
+        "eta_min": opt['train']['eta_min'],
+        "pixel_criterion": opt['train']['pixel_criterion'],
+        "pixel_weight": opt['train']['pixel_weight'],
+        "ssim_weight": opt['train']['ssim_weight'],
+        "exc_weight": opt['train']['exc_weight'],
+        "mask_weight": opt['train']['mask_weight'],
+        "color_weight": opt['train']['color_weight'],
+        "val_epoch": opt['train']['val_epoch'],
+        "manual_seed": opt['train']['manual_seed'],
+        }
+    )
 
     #### create train and val dataloader
     # dataset_ratio = 200  # enlarge the size of each epoch
@@ -106,7 +132,7 @@ def main():
 
         if opt['train']['istraining'] == True:
             start_step = current_step
-            for batch_step, train_data in enumerate(tqdm(train_loader)):
+            for batch_step, train_data in enumerate(train_loader):
                 current_step += 1
                 if current_step > total_iters + start_step:
                     break
@@ -120,18 +146,16 @@ def main():
                 if current_step % opt['logger']['print_freq'] == 0:
                     print_iter += 1
                     logs = model.get_current_log()
-                    message = 'epoch:{:06d}, lr:'.format(epoch)
+                    message = f'epoch:{epoch:06d}/{total_epochs:06d}, iter:{current_step:06d}/{total_iters:06d}, lr:'
                     for v in model.get_current_learning_rate():
-                        message += f'{v:.4e},'
+                        message += f'{v:.4e}, '
 
                     total_loss += logs['l_total']
                     mean_total = total_loss / print_iter
                     message += f'mean_total_loss: {mean_total:.4e}'
                     # tensorboard logger
-                    if opt['use_tb_logger'] and 'debug' not in opt['name']:
-                        if rank <= 0:
-                            tb_logger.add_scalar('mean_loss', mean_total, current_step)
                     if rank <= 0:
+                        wandb.log({"mean_loss": mean_total})
                         logger.info(message)
 
         ##### valid test
@@ -174,15 +198,13 @@ def main():
 
             avg_psnr_all = avg_psnr_exp1 + avg_psnr_exp2 + avg_psnr_exp3 + avg_psnr_exp4 + avg_psnr_exp5
             # log
-            logger.info('# Validation # PSNR: Exp1 {:.4f}, Exp2 {:.4f}, Exp3 {:.4f}, Exp4 {:.4f}, Exp5 {:.4f}, '.
-                        format(avg_psnr_exp1 / 150.0, avg_psnr_exp2 / 150.0,
-                               avg_psnr_exp3 / 150.0, avg_psnr_exp4 / 150.0, avg_psnr_exp5 / 150.0))
+            logger.info(f'# Validation # Epoch: {epoch:06d}/{total_epochs:06d}, PSNR: Exp1 {(avg_psnr_exp1 / 150.0):.4f}, Exp2 {(avg_psnr_exp2 / 150.0):.4f}, Exp3 {(avg_psnr_exp3 / 150.0):.4f}, Exp4 {(avg_psnr_exp4 / 150.0):.4f}, Exp5 {(avg_psnr_exp5 / 150.0):.4f}')
+            wandb.log({'avg_psnr_exp1': avg_psnr_exp1 / 150.0, 'avg_psnr_exp2': avg_psnr_exp2 / 150.0, 'avg_psnr_exp3': avg_psnr_exp3 / 150.0, 'avg_psnr_exp4': avg_psnr_exp4 / 150.0, 'avg_psnr_exp5': avg_psnr_exp5 / 150.0})
+            
             logger.info(
-                f'# Validation # Average PSNR: {(avg_psnr_all / idx):.4f}, Previous best Average PSNR: {best_psnr_avg:.4f}, Previous best Average step: {best_step_psnr}')
-
-            # tensorboard logger
-            if opt['use_tb_logger'] and 'debug' not in opt['name']:
-                tb_logger.add_scalar('valid_psnr', avg_psnr_all / idx, current_step)
+                f'# Validation # Epoch: {epoch:06d}/{total_epochs:06d}, Average PSNR: {(avg_psnr_all / idx):.4f}, Previous best Average PSNR: {best_psnr_avg:.4f}, Previous best Average step: {best_step_psnr}')
+            
+            wandb.log({'avg_psnr': avg_psnr_all / idx})
 
             if avg_psnr_all / idx > best_psnr_avg:
                 if rank <= 0:

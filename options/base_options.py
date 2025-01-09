@@ -2,10 +2,11 @@ import os
 import os.path as osp
 from loguru import logger
 import yaml
-from utils.util import OrderedYaml
-from utils.util import get_timestamp
-Loader, Dumper = OrderedYaml()
+from utils.util import OrderedYaml, gen_expid
 
+Loader, Dumper = OrderedYaml()
+import time
+timestr = time.strftime('%Y%m%d-%H%M%S')
 
 def parse(opt_path, is_train=True):
     with open(opt_path, mode='r') as f:
@@ -13,7 +14,6 @@ def parse(opt_path, is_train=True):
     # export CUDA_VISIBLE_DEVICES
     gpu_list = ','.join(str(x) for x in opt['gpu_ids'])
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
-    print('export CUDA_VISIBLE_DEVICES=' + gpu_list)
 
     opt['is_train'] = is_train
     if opt['distortion'] == 'sr':
@@ -44,16 +44,17 @@ def parse(opt_path, is_train=True):
         if path and key in opt['path'] and key != 'strict_load':
             opt['path'][key] = osp.expanduser(path)
 
+    expid = gen_expid(f'{timestr}_{opt["name"]}')
+    opt['expid'] = expid
     if is_train:
-        # ipdb.set_trace()
-        now_path = osp.join(opt['path']['root'], 'experiments', opt['name'])
-        experiments_root = now_path + '_' + get_timestamp()
+        experiments_root = osp.join(opt['path']['root'], f'{timestr}_train_{opt["name"]}_{expid}')
 
         opt['path']['experiments_root'] = experiments_root
         opt['path']['models'] = osp.join(experiments_root, 'models')
         opt['path']['training_state'] = osp.join(experiments_root, 'training_state')
         opt['path']['log'] = experiments_root
         opt['path']['val_images'] = osp.join(experiments_root, 'val_images')
+        logger.add(os.path.join(opt['path']['log'], f'{osp.basename(experiments_root)}.log'))
 
         # change some options for debug mode
         if 'debug' in opt['name']:
@@ -61,14 +62,20 @@ def parse(opt_path, is_train=True):
             opt['logger']['print_freq'] = 1
             opt['logger']['save_checkpoint_freq'] = 8
     else:  # test
-        results_root = osp.join(opt['path']['root'], 'results', opt['name'])
-        opt['path']['results_root'] = results_root
+        results_root = osp.join(opt['path']['root'], f'{timestr}_test_{opt["name"]}_{expid}')        
         opt['path']['log'] = results_root
-
+        logger.add(os.path.join(opt['path']['log'], f'{osp.basename(results_root)}.log'))
     # network
     if opt['distortion'] == 'sr':
         opt['network_G']['scale'] = scale
+    
+    logger.info(f'export CUDA_VISIBLE_DEVICES={gpu_list}')
 
+    # mkdirs
+    for key, path in opt['path'].items():
+        if key != 'strict_load' and path and not osp.exists(path):
+            logger.info(f'mkdir {path}...')
+            os.makedirs(path)
     return opt
 
 

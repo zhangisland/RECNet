@@ -47,9 +47,8 @@ network_G:
 
 #### path
 path:
-  root: ./outputs
-  results_root: ./outputs
-  test_images: ./outputs/test_images
+  root: exp_runs
+  test_images: exp_runs/test_images
   pretrain_model_G: ~
   strict_load: false
   resume_state: ~
