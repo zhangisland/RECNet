@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from collections import OrderedDict
 import torch
 import torch.nn as nn
@@ -9,8 +9,6 @@ from .base_model import BaseModel
 from models.loss import CharbonnierLoss, Colorloss
 from models.loss_new import SSIMLoss, EXCloss
 from utils.util import rgb2yCbCr
-
-logger = logging.getLogger('base')
 
 
 class SIEN_Model(BaseModel):
@@ -183,13 +181,12 @@ class SIEN_Model(BaseModel):
         else:
             net_struc_str = '{}'.format(self.netG.__class__.__name__)
         if self.rank <= 0:
-            logger.info('Network G structure: {}, with parameters: {:,d}'.format(net_struc_str, n))
-            # logger.info(s)
+            logger.info(f'Network G structure: {net_struc_str}, with parameters: {n:,d}')
 
     def load(self):
         load_path_G = self.opt['path']['pretrain_model_G']
         if load_path_G is not None:
-            logger.info('Loading model for G [{:s}] ...'.format(load_path_G))
+            logger.info(f'Loading model for G [{load_path_G}] ...')
             self.load_network(load_path_G, self.netG, self.opt['path']['strict_load'])
 
     def save(self, iter_label):

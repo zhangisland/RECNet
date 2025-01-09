@@ -1,8 +1,9 @@
 import os
+import os.path as osp
 import math
 import argparse
 import random
-import logging
+from loguru import logger
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -39,19 +40,7 @@ def main():
         resume_state = None
 
     #### mkdir and loggers
-    if rank <= 0:  # normal training (rank -1) OR distributed training (rank 0)
-        if resume_state is None:
-            util.mkdirs((path for key, path in opt['path'].items() if not key == 'experiments_root'
-                         and 'pretrain_model' not in key and 'resume' not in key))
-
-        # config loggers. Before it, the log will not work
-        util.setup_logger('base', opt['path']['log'], 'train_' + opt['name'], level=logging.INFO,
-                          screen=True, tofile=True)
-    else:
-        util.setup_logger('base', opt['path']['root'], 'test_' + opt['name'], level=logging.INFO,
-                          screen=True, tofile=True)
-
-    logger = logging.getLogger('base')
+    logger.add(osp.join(opt["path"]["root"], f"test_{opt['name']}.log"))
 
     # convert to NoneDict, which returns None for missing keys
     opt = option.dict_to_nonedict(opt)

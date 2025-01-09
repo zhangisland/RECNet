@@ -4,7 +4,7 @@ use_tb_logger: true
 model: rdp
 distortion: sr
 scale: 1
-gpu_ids: [1]
+gpu_ids: [0]
 
 #### datasets
 datasets:
@@ -19,7 +19,7 @@ datasets:
 
     use_shuffle: true
     n_workers: 0
-    batch_size: 8
+    batch_size: 4
     IN_size: 384
     augment: true
     color: RGB

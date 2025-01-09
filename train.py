@@ -2,14 +2,19 @@ import os
 import math
 import argparse
 import random
-import logging
+from loguru import logger
+
 import torch
 from tqdm import tqdm
 import options.base_options as option
 from utils import util
 from data import create_dataloader, create_dataset
 from models import create_model
-from utils.util import get_timestamp
+from torch.utils.tensorboard import SummaryWriter
+import time
+import os.path as osp
+timestr = time.strftime('%Y%m%d-%H%M%S')
+import wandb
 
 
 def main():
@@ -24,7 +29,7 @@ def main():
     #### distributed training settings
     opt['dist'] = False
     rank = -1
-    print('Disabled distributed training.')
+    logger.info('Disabled distributed training.')
 
     #### loading resume state if exists
     if opt['path'].get('resume_state', None):
@@ -39,24 +44,11 @@ def main():
     if rank <= 0:  # normal training (rank -1) OR distributed training (rank 0)
         util.mkdirs((path for key, path in opt['path'].items() if not key == 'experiments_root'
                      and 'pretrain_model' not in key and 'resume' not in key))
-        util.setup_logger('base', opt['path']['log'], 'train_' + opt['name'], level=logging.INFO,
-                          screen=True, tofile=True)
-        logger = logging.getLogger('base')
-        # tensorboard logger
-        if opt['use_tb_logger'] and 'debug' not in opt['name']:
-            version = float(torch.__version__[0:3])
-            if version >= 1.1:
-                from torch.utils.tensorboard import SummaryWriter
-            else:
-                logger.info(
-                    'You are using PyTorch {}. Tensorboard will use [tensorboardX]'.format(version))
-                from tensorboardX import SummaryWriter
-            tb_logger = SummaryWriter(
-                log_dir=(os.path.join(opt['path']['root'], 'tb_logger', opt['name'] + '_' + get_timestamp())))
-
-    else:
-        util.setup_logger('base', opt['path']['log'], 'train', level=logging.INFO, screen=True)
-        logger = logging.getLogger('base')
+        logger.add(os.path.join(opt['path']['log'], f'train_{opt["name"]}_{timestr}.log'))
+        
+    # tensorboard logger
+    if opt['use_tb_logger']:
+        tb_logger = SummaryWriter(log_dir=(osp.join(opt['path']['root'], 'tb_logger', f'{opt["name"]}_{timestr}')))
 
     opt = option.dict_to_nonedict(opt)
     seed = opt['train']['manual_seed']
@@ -79,24 +71,20 @@ def main():
             train_sampler = None
             train_loader = create_dataloader(train_set, dataset_opt, opt, train_sampler)
             if rank <= 0:
-                logger.info('Number of train images: {:,d}, iters: {:,d}'.format(
-                    len(train_set), train_size))
-                logger.info('Total epochs needed: {:d} for iters {:,d}'.format(
-                    total_epochs, total_iters))
+                logger.info(f'Number of train images: {len(train_set):06d}, iters: {train_size:06d}')
+                logger.info(f'Total epochs needed: {total_epochs:06d} for iters {total_iters:06d}')
         elif phase == 'val':
             val_set = create_dataset(opt, dataset_opt)
             val_loader = create_dataloader(val_set, dataset_opt, opt, None)
             if rank <= 0:
-                logger.info('Number of val images in [{:s}]: {:d}'.format(
-                    dataset_opt['name'], len(val_set)))
+                logger.info(f'Number of val images in [{dataset_opt["name"]}]: {len(val_set):06d}')
 
     #### create model
     model = create_model(opt)
 
     #### resume training
     if resume_state:
-        logger.info('Resuming training from epoch: {}, iter: {}.'.format(
-            resume_state['epoch'], resume_state['iter']))
+        logger.info(f'Resuming training from epoch: {resume_state["epoch"]}, iter: {resume_state["iter"]}.')
 
         start_epoch = resume_state['epoch']
         current_step = resume_state['iter']
@@ -109,7 +97,7 @@ def main():
     best_step_psnr = 0
 
     #### training
-    logger.info('Start training from epoch: {:d}, iter: {:d}'.format(start_epoch, current_step))
+    logger.info(f'Start training from epoch: {start_epoch:06d}, iter: {current_step:06d}')
 
     for epoch in range(start_epoch, total_epochs + 2):
 
@@ -132,13 +120,13 @@ def main():
                 if current_step % opt['logger']['print_freq'] == 0:
                     print_iter += 1
                     logs = model.get_current_log()
-                    message = 'epoch:{:3d}, lr:'.format(epoch)
+                    message = 'epoch:{:06d}, lr:'.format(epoch)
                     for v in model.get_current_learning_rate():
-                        message += '{:.3e},'.format(v)
+                        message += f'{v:.4e},'
 
                     total_loss += logs['l_total']
                     mean_total = total_loss / print_iter
-                    message += '{:s}: {:.4e} '.format('mean_total_loss', mean_total)
+                    message += f'mean_total_loss: {mean_total:.4e}'
                     # tensorboard logger
                     if opt['use_tb_logger'] and 'debug' not in opt['name']:
                         if rank <= 0:
@@ -190,8 +178,7 @@ def main():
                         format(avg_psnr_exp1 / 150.0, avg_psnr_exp2 / 150.0,
                                avg_psnr_exp3 / 150.0, avg_psnr_exp4 / 150.0, avg_psnr_exp5 / 150.0))
             logger.info(
-                '# Validation # Average PSNR: {:.4f} Previous best Average PSNR: {:.4f} Previous best Average step: {}'.
-                format(avg_psnr_all / idx, best_psnr_avg, best_step_psnr))
+                f'# Validation # Average PSNR: {(avg_psnr_all / idx):.4f}, Previous best Average PSNR: {best_psnr_avg:.4f}, Previous best Average step: {best_step_psnr}')
 
             # tensorboard logger
             if opt['use_tb_logger'] and 'debug' not in opt['name']:
@@ -201,7 +188,7 @@ def main():
                 if rank <= 0:
                     best_psnr_avg = avg_psnr_all / idx
                     best_step_psnr = current_step
-                    logger.info('Saving best average models!!!!!!!The best psnr is:{:4f}'.format(best_psnr_avg))
+                    logger.info(f'Saving best average models!!!!!!!The best psnr is:{best_psnr_avg:4f}')
                     model.save_best('avg_psnr')
 
         if epoch % opt['logger']['save_checkpoint_epoch'] == 0 and epoch >= 1:

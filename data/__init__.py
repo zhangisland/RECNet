@@ -1,5 +1,5 @@
 """create dataset and dataloader"""
-import logging
+from loguru import logger
 import torch
 import torch.utils.data
 
@@ -46,7 +46,5 @@ def create_dataset(opt, dataset_opt):
     else:
         raise NotImplementedError('Dataset [{:s}] is not recognized.'.format(mode))
 
-    logger = logging.getLogger('base')
-    logger.info('Dataset [{:s} - {:s}] is created.'.format(dataset.__class__.__name__,
-                                                           dataset_opt['name']))
+    logger.info(f'Dataset [{dataset.__class__.__name__} - {dataset_opt["name"]:s}] is created.')
     return dataset

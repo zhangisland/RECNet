@@ -1,5 +1,4 @@
-import logging
-logger = logging.getLogger('base')
+from loguru import logger
 
 
 def create_model(opt):
@@ -10,6 +9,6 @@ def create_model(opt):
     else:
         raise NotImplementedError('Model [{:s}] not recognized.'.format(model))
     m = M(opt)
-    logger.info('Model [{:s}] is created.'.format(m.__class__.__name__))
+    logger.info(f'Model [{m.__class__.__name__}] is created.')
     return m
 

@@ -1,6 +1,6 @@
 import os
 import os.path as osp
-import logging
+from loguru import logger
 import yaml
 from utils.util import OrderedYaml
 from utils.util import get_timestamp
@@ -104,17 +104,14 @@ def dict_to_nonedict(opt):
 
 
 def check_resume(opt, resume_iter):
-    '''Check resume states and pretrain_model paths'''
-    logger = logging.getLogger('base')
+    '''Check resume states and pretrain_model paths'''    
     if opt['path']['resume_state']:
         if opt['path'].get('pretrain_model_G', None) is not None or opt['path'].get(
                 'pretrain_model_D', None) is not None:
             logger.warning('pretrain_model path will be ignored when resuming training.')
 
-        opt['path']['pretrain_model_G'] = osp.join(opt['path']['models'],
-                                                   '{}_G.pth'.format(resume_iter))
+        opt['path']['pretrain_model_G'] = osp.join(opt['path']['models'], f'{resume_iter:06d}_G.pth')
         logger.info('Set [pretrain_model_G] to ' + opt['path']['pretrain_model_G'])
         if 'gan' in opt['model']:
-            opt['path']['pretrain_model_D'] = osp.join(opt['path']['models'],
-                                                       '{}_D.pth'.format(resume_iter))
+            opt['path']['pretrain_model_D'] = osp.join(opt['path']['models'], f'{resume_iter:06d}_D.pth')
             logger.info('Set [pretrain_model_D] to ' + opt['path']['pretrain_model_D'])
