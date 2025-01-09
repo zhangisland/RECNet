@@ -22,6 +22,36 @@ except ImportError:
     from yaml import Loader, Dumper
 
 import hashlib
+from glob import glob
+import os.path as osp
+import shutil
+
+def get_latest_train_model(root_dir):
+    """
+    Get the latest trained model from the specified directory.
+    """
+    latest_exp_folder = sorted(glob(osp.join(root_dir, '*train*')))[-1]
+    best_model = sorted(glob(osp.join(latest_exp_folder, 'models', '*best*.pth')))
+
+    return best_model
+
+
+def save_scripts(path_to_save, scripts_to_save):
+    """Save scripts to the specified path.
+    Args:
+        path_to_save (str): path to save scripts.
+        scripts_to_save (list [str]): list of scripts to save.
+    """
+    if not os.path.exists(path_to_save):
+        os.makedirs(path_to_save)
+    if scripts_to_save is not None:
+        os.mkdir(os.path.join(path_to_save, 'scripts'))
+        for script in scripts_to_save:
+            dst_file = os.path.join(path_to_save, 'scripts', os.path.basename(script))
+            if os.path.isdir(script):
+                shutil.copytree(script, dst_file, dirs_exist_ok=True)
+            else:
+                shutil.copyfile(script, dst_file)
 
 def gen_expid(instr):
     return hashlib.md5(instr.encode('utf-8')).hexdigest()[:8]

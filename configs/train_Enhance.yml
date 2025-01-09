@@ -79,5 +79,5 @@ train:
 
 #### logger
 logger:
-  print_freq: 100
+  print_freq: 500
   save_checkpoint_epoch: !!float 10

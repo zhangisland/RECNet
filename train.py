@@ -10,9 +10,10 @@ import options.base_options as option
 from utils import util
 from data import create_dataloader, create_dataset
 from models import create_model
-from torch.utils.tensorboard import SummaryWriter
 import time
 import os.path as osp
+import sys
+from glob import glob
 timestr = time.strftime('%Y%m%d-%H%M%S')
 import wandb
 os.environ["WANDB_MODE"] = "offline"
@@ -32,6 +33,11 @@ def main():
     opt['dist'] = False
     rank = -1
     logger.info('Disabled distributed training.')
+    logger.info(f'python {" ".join(sys.argv)}')
+    # backup scripts 
+    scripts = glob('configs') + glob('data') + glob('models') + glob('options') + glob('utils') + glob('*.py')
+    util.save_scripts(os.path.join(opt['path']['log']), scripts)
+
     
     #### loading resume state if exists
     if opt['path'].get('resume_state', None):

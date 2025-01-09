@@ -31,7 +31,7 @@ def main():
         # if idx >= 800:
         #     break
 
-        with open(os.path.join(outputdir, 'groups_valid_mixexposure.txt'), 'a') as f:
+        with open(os.path.join(outputdir, 'groups_test_mixexposure.txt'), 'a') as f:
             f.write(groups + '\n')
 
 

@@ -1,5 +1,6 @@
 datasets/
 outputs/
+exp_runs/
 wandb/
 # Byte-compiled / optimized / DLL files
 __pycache__/
