@@ -62,7 +62,7 @@ def parse(opt_path, is_train=True):
             opt['logger']['print_freq'] = 1
             opt['logger']['save_checkpoint_freq'] = 8
     else:  # test
-        results_root = osp.join(opt['path']['root'], f'{timestr}_test_{opt["name"]}_{expid}')        
+        results_root = osp.join(opt['path']['root'], f'{timestr}_test_{opt["name"]}_{expid}')
         opt['path']['log'] = results_root
         logger.add(os.path.join(opt['path']['log'], f'{osp.basename(results_root)}.log'))
     # network
@@ -73,6 +73,8 @@ def parse(opt_path, is_train=True):
 
     # mkdirs
     for key, path in opt['path'].items():
+        if key == 'test_images' and opt['train']['istraining']:
+            continue
         if key != 'strict_load' and path and not osp.exists(path):
             logger.info(f'mkdir {path}...')
             os.makedirs(path)

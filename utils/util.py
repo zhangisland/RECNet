@@ -25,6 +25,18 @@ import hashlib
 from glob import glob
 import os.path as osp
 import shutil
+import argparse
+
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ('true', 'yes', 'y', '1'):
+        return True
+    elif value.lower() in ('false', 'no', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError(f"Invalid boolean value: {value}")
+    
 
 def get_latest_train_model(root_dir):
     """
@@ -158,6 +170,9 @@ def tensor2img(tensor, out_type=np.uint8, min_max=(0, 1)):
 
 
 def save_img(img, img_path, mode='RGB'):
+    if mode == 'BGR':
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
     cv2.imwrite(img_path, img)
 
 

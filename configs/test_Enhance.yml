@@ -19,7 +19,7 @@ datasets:
 
     use_shuffle: true
     n_workers: 0
-    batch_size: 8
+    batch_size: 4
     IN_size: 384
     augment: true
     color: RGB
@@ -48,7 +48,7 @@ network_G:
 #### path
 path:
   root: exp_runs
-  pretrain_model_G: ~
+  pretrain_model_G: exp_runs/20250109-155755_train_STEN_4e97f010/models/000050_G_4e97f010.pth
   strict_load: false
   resume_state: ~
 
@@ -62,15 +62,15 @@ train:
   fix_some_part: ~
   warmup_iter: -1
   augment: True
-  istraining: True
+  istraining: False
   lr_steps: [150000, 225000]
   lr_gamma: 0.5
   eta_min: 5e-06
   pixel_criterion: l1
   pixel_weight: 1.0
   ssim_weight: 0.1
-  val_epoch: 5
-  manual_seed: ~
+  val_epoch: 10.0
+  manual_seed: 0
   exp_const: true
   exc_weight: 0.1
   mask_weight: 0.25
@@ -79,4 +79,4 @@ train:
 #### logger
 logger:
   print_freq: 500
-  save_checkpoint_epoch: !!float 5
+  save_checkpoint_epoch: !!float 10

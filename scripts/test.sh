@@ -1,1 +1,1 @@
-python test.py --opt configs/train_Enhance.yml
+python test.py --opt configs/test_Enhance.yml --save_img False --verbose True

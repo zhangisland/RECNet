@@ -33,8 +33,10 @@ class BaseModel:
         pass
 
     def save_network(self, network, network_label, iter_label, max_num_ckpts=3):
-        if 'best' in network_label or 'latest' in network_label:  # best model
+        if 'best' in network_label:
             save_filename = f'{iter_label:06d}_{network_label}_{self.opt["expid"]}.pth'
+        elif 'latest' in iter_label:
+            save_filename = f'{iter_label}_{network_label}_{self.opt["expid"]}.pth'
         else:
             save_filename = f'{int(iter_label):06d}_{network_label}_{self.opt["expid"]}.pth'
         save_path = os.path.join(self.opt['path']['models'], save_filename)
@@ -92,21 +94,12 @@ class BaseModel:
             network = network.module
         return str(network), sum(map(lambda x: x.numel(), network.parameters()))
 
-    # def save_network(self, network, network_label, iter_label):
-    #     save_filename = f'{iter_label:06d}_{network_label}.pth'
-    #     save_path = os.path.join(self.opt['path']['models'], save_filename)
-    #     if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
-    #         network = network.module
-    #     state_dict = network.state_dict()
-    #     for key, param in state_dict.items():
-    #         state_dict[key] = param.cpu()
-    #     torch.save(state_dict, save_path)
 
     def load_network(self, load_path, network, strict=True):
         if isinstance(network, nn.DataParallel) or isinstance(network, DistributedDataParallel):
             network = network.module
         if os.path.exists(load_path):
-            load_net = torch.load(load_path)
+            load_net = torch.load(load_path, weights_only=True)
             load_net_clean = OrderedDict()  # remove unnecessary 'module.'
             for k, v in load_net.items():
                 if k.startswith('module.'):
@@ -125,7 +118,7 @@ class BaseModel:
             state['schedulers'].append(s.state_dict())
         for o in self.optimizers:
             state['optimizers'].append(o.state_dict())
-        save_filename = f'{int(iter_step):06d}.state'
+        save_filename = f'iter_{int(iter_step):06d}.state'
         save_path = os.path.join(self.opt['path']['training_state'], save_filename)
 
         # check number of ckpts in log_dir

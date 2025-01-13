@@ -27,6 +27,23 @@ bash scripts/test.sh
 ```a
 bash scripts/train.sh
 ```
+#### A1. convert multi-exp images to a video sequence
+```bash
+
+ls *.JPG | sed "s/^/file '/;s/$/'/" > filelist.txt # generate filelist.txt contains images with diverse exposures
+ffmpeg -f concat -safe 0 -r 20 -i filelist.txt -c:v libx264 -crf 0 -preset veryslow -pix_fmt yuv444p output.mp4
+
+python v2e.py -i output.mp4 --overwrite --timestamp_resolution=.003 --auto_timestamp_resolution=False --dvs_exposure duration 0.005 --output_folder output/video --overwrite --pos_thres=.05 --neg_thres=.05 --sigma_thres=0.03 --dvs_aedat2 video.aedat --output_width=640 --output_height=480 --stop_time=1 --cutoff_hz=15
+
+python v2e.py -i output.mp4 --overwrite --timestamp_resolution=.003 --auto_timestamp_resolution=False --dvs_exposure duration 0.005 --output_folder output/video --overwrite --pos_thres=.15 --neg_thres=.15 --sigma_thres=0.03 --dvs_aedat2 video.aedat --output_width=640 --output_height=480 --stop_time=1 --cutoff_hz=15
+
+
+python v2e.py -i /extension_space/exposure_related/event_rgb_sample_ds/output.mp4 --overwrite --timestamp_resolution=.003 --auto_timestamp_resolution=False --dvs_exposure duration 0.005 --output_folder output/video --overwrite --pos_thres=.05 --neg_thres=.05 --sigma_thres=0.03 --dvs_aedat2 video.aedat --output_width=640 --output_height=480 --stop_time=1 --cutoff_hz=15 
+
+249 event frames for 5 RGB frames
+
+```
+
 
 <hr />
 
@@ -57,3 +74,9 @@ If you find this work useful for your research, please consider citing:
 
 #### Acknowledgements
 This repository is based on [ENC](https://github.com/KevinJ-Huang/ExposureNorm-Compensation) - special thanks to their code!
+
+
+
+
+
+
